@@ -1,0 +1,19 @@
+.history
+pretrain_params/*
+!pretrain_params/.gitkeep
+outputs/
+results/
+logs/
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+model/__pycache__/
+downstream_phase/__pycache__/
+datasets/__pycache__/
+datasets/phase/__pycache__/
+datasets/transforms/__pycache__/
+upstream_surgformer/.git/
+
+# upstream は公開元のコピー(isyangshu/Surgformer)のため追跡しない
+upstream_surgformer

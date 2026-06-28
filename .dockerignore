@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.git/
+data/
+outputs/
+results/
+upstream_surgformer/.git/
+evaluation_matlab/octave-workspace
