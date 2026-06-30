@@ -447,6 +447,7 @@ class VisionTransformer(nn.Module):
         input_std=(0.229, 0.224, 0.225),
         ablate_offfield=False,
         offfield_radius_scale=1.0,
+        offfield_invert=False,
         instr_attn_bias=False,
         instr_lambda=0.0,
         instr_bias_blocks="all",
@@ -469,6 +470,8 @@ class VisionTransformer(nn.Module):
         # Step3 入力 ablation: 円形 FOV 外の画素を真の黒に潰して因果依存をテストする
         self.ablate_offfield = ablate_offfield
         self.offfield_radius_scale = float(offfield_radius_scale)
+        # 逆実験: FOV 内パッチを除外し視野外パッチのみで推論する (視野外の情報量を測る)
+        self.offfield_invert = offfield_invert
         self.patch_embed = PatchEmbed(
             img_size=img_size,
             patch_size=patch_size,
@@ -603,10 +606,32 @@ class VisionTransformer(nn.Module):
         ).view(1, C, 1, 1, 1)
         return torch.where(offfield, fill, x)
 
+    def _make_offfield_patch_mask(self, x):
+        """円形 FOV 外(視野外)のパッチのみ True(keep)、FOV 内パッチは False(除外)の
+        (B*T, K) bool マスクを返す。視野外のみで推論する逆実験用。
+        黒判定ではなく純粋な幾何(円)で判定するため、黒縁・オーバーレイ文字を問わず
+        視野外パッチを全て attention に通し、FOV 内は -inf 除外する。"""
+        B, C, T, H, W = x.shape
+        device = x.device
+        p = self.patch_embed.patch_size
+        cy = (H - 1) / 2.0
+        cx = (W - 1) / 2.0
+        radius = self.offfield_radius_scale * (min(H, W) / 2.0)
+        yy = torch.arange(H, device=device).view(H, 1).float()
+        xx = torch.arange(W, device=device).view(1, W).float()
+        offfield = ((yy - cy) ** 2 + (xx - cx) ** 2 > radius**2).float()  # (H,W)
+        pooled = F.avg_pool2d(offfield.view(1, 1, H, W), kernel_size=p, stride=p)
+        keep = pooled.flatten(1) >= 0.5  # (1, K) パッチの過半が視野外なら keep
+        return keep.expand(B * T, -1)
+
     def forward_features(self, x, instr_mask=None):
         # B, C, T, H, W
-        x = self._ablate_offfield(x)
-        spatial_patch_mask = self._make_spatial_patch_mask(x)
+        if self.ablate_offfield and self.offfield_invert:
+            # 視野外のみで推論: 画素は潰さず、FOV 内パッチを attention から除外する
+            spatial_patch_mask = self._make_offfield_patch_mask(x)
+        else:
+            x = self._ablate_offfield(x)
+            spatial_patch_mask = self._make_spatial_patch_mask(x)
         attn_bias = self._make_instr_attn_bias(instr_mask)
         bias_block_ids = self._instr_bias_block_ids() if attn_bias is not None else set()
         x = self.patch_embed(x)

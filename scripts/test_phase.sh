@@ -42,6 +42,9 @@ fi
 if [[ -n "${OFFFIELD_RADIUS_SCALE:-}" ]]; then
   EXTRA_ARGS+=(--offfield_radius_scale "${OFFFIELD_RADIUS_SCALE}")
 fi
+if [[ "${OFFFIELD_INVERT:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--offfield_invert)
+fi
 if [[ "${INSTR_ATTN_BIAS:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--instr_attn_bias)
 fi

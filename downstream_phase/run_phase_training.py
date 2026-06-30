@@ -108,6 +108,13 @@ def get_args():
         help="FOV circle radius as a fraction of min(H,W)/2. <1.0 also ablates the boundary band.",
     )
     parser.add_argument(
+        "--offfield_invert",
+        action="store_true",
+        help="Inverse experiment: keep ONLY off-field (out-of-FOV) patches and exclude "
+        "in-FOV patches from attention, to measure how much phase info lives off-field. "
+        "Requires --ablate_offfield.",
+    )
+    parser.add_argument(
         "--instr_attn_bias",
         action="store_true",
         help="SAM3 器具マスクで Spatial Attention を強調 (ソフトバイアス)。test モードで使用。",
@@ -658,6 +665,7 @@ def main(args, ds_init):
         black_pixel_threshold=args.black_pixel_threshold,
         ablate_offfield=args.ablate_offfield,
         offfield_radius_scale=args.offfield_radius_scale,
+        offfield_invert=args.offfield_invert,
         instr_attn_bias=args.instr_attn_bias,
         instr_lambda=args.instr_lambda,
         instr_bias_blocks=args.instr_bias_blocks,
@@ -1017,6 +1025,7 @@ def main(args, ds_init):
         black_pixel_threshold=args.black_pixel_threshold,
         ablate_offfield=args.ablate_offfield,
         offfield_radius_scale=args.offfield_radius_scale,
+        offfield_invert=args.offfield_invert,
         instr_attn_bias=args.instr_attn_bias,
         instr_lambda=args.instr_lambda,
         instr_bias_blocks=args.instr_bias_blocks,
