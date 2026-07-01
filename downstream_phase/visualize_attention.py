@@ -66,6 +66,11 @@ def build_args():
     ap.add_argument("--max_samples", type=int, default=1, help="video/frame未指定時の処理件数")
     ap.add_argument("--alpha", type=float, default=0.5, help="ヒートマップ重畳の不透明度")
     ap.add_argument("--save_npz", action="store_true", default=False)
+    ap.add_argument("--hide_frame_w", action="store_true", default=False,
+                    help="各フレームの時間attention重み(w=...)を図に記載しない")
+    ap.add_argument("--no_visible_mask", action="store_true", default=False,
+                    help="黒領域を隠す表示マスクを外し、画面全体にヒートマップを重畳する"
+                         "(モデル側も見るなら --disable_spatial_black_mask と併用)")
     # Phase別一括モード: 指定videoの各phaseにつき1フレームを選んで可視化
     ap.add_argument("--per_phase", action="store_true", default=False,
                     help=("各phase(1..nb_classes)につき1フレームを可視化。"
@@ -262,7 +267,8 @@ def save_figures(frames, maps, args, dir_name, title, prob=None, pred=None,
         heat = maps[t]
         heat = (heat - heat.min()) / (heat.max() - heat.min() + 1e-8)
         heat_up = upsample(heat, size)
-        visible_mask = foreground_mask(frames[t], args.black_pixel_threshold)
+        visible_mask = (None if getattr(args, "no_visible_mask", False)
+                        else foreground_mask(frames[t], args.black_pixel_threshold))
         ov = np.clip(
             overlay(frames[t], heat_up, args.alpha, visible_mask=visible_mask),
             0,
@@ -270,9 +276,10 @@ def save_figures(frames, maps, args, dir_name, title, prob=None, pred=None,
         )
         plt.imsave(os.path.join(sample_dir, f"frame_{t:02d}.png"), ov)
         axes[t].imshow(ov)
-        is_top = frame_w is not None and abs(frame_w[t] - wmax) < 1e-12
+        show_w = frame_w is not None and not getattr(args, "hide_frame_w", False)
+        is_top = show_w and abs(frame_w[t] - wmax) < 1e-12
         label_lines = [f"t={t}{' target' if t == T - 1 else ''}"]
-        if frame_w is not None:
+        if show_w:
             label_lines.append(f"w={frame_w[t]:.3f}")
         axes[t].text(
             0.03,

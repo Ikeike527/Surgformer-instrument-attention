@@ -37,6 +37,12 @@ fi
 if [[ "${SAVE_NPZ:-1}" == "1" ]]; then
   EXTRA_ARGS+=(--save_npz)
 fi
+if [[ "${HIDE_FRAME_W:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--hide_frame_w)
+fi
+if [[ "${NO_VISIBLE_MASK:-0}" == "1" ]]; then
+  EXTRA_ARGS+=(--no_visible_mask)
+fi
 if [[ "${DISABLE_SPATIAL_BLACK_MASK:-0}" == "1" ]]; then
   EXTRA_ARGS+=(--disable_spatial_black_mask)
 fi
