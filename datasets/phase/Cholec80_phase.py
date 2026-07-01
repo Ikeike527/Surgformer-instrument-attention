@@ -187,7 +187,21 @@ class PhaseDataset_Cholec80(Dataset):
         self.dataset_samples = self._make_dataset(self.infos)
 
         if mode == "train":
-            pass
+            # 器具バイアス学習時はフレームとマスクの幾何整合を保つため、
+            # 幾何拡張を行わず test/val と同じ決定的 Resize + 正規化を使う。
+            if self.instr_attn_bias:
+                self.data_transform = video_transforms.Compose(
+                    [
+                        video_transforms.Resize(
+                            (self.short_side_size, self.short_side_size),
+                            interpolation="bilinear",
+                        ),
+                        volume_transforms.ClipToTensor(),
+                        video_transforms.Normalize(
+                            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                        ),
+                    ]
+                )
 
         elif mode == "val":
             self.data_transform = video_transforms.Compose(
@@ -244,7 +258,16 @@ class PhaseDataset_Cholec80(Dataset):
                     frames, frame_id, video_id, index, self.cut_black
                 )  # T H W C
 
-            buffer = self._aug_frame(buffer, args)
+            # 器具バイアス学習時は決定的変換 (マスク整合)、通常は幾何拡張。
+            if self.instr_attn_bias:
+                buffer = self.data_transform(buffer)
+            else:
+                buffer = self._aug_frame(buffer, args)
+
+            # 器具マスク (有効時のみ): フレームと同じ sampled_list 順で (T,S,S) を付加
+            extra = (
+                (self._load_instr_masks(sampled_list),) if self.instr_attn_bias else ()
+            )
 
             if self.output_mode == "key_frame":
                 if self.data_strategy == "offline":
@@ -253,6 +276,7 @@ class PhaseDataset_Cholec80(Dataset):
                         phase_labels[self.clip_len // 2],
                         str(index) + "_" + video_id + "_" + str(frame_id),
                         {},
+                        *extra,
                     )
                 elif self.data_strategy == "online":
                     return (
@@ -260,6 +284,7 @@ class PhaseDataset_Cholec80(Dataset):
                         phase_labels[-1],
                         str(index) + "_" + video_id + "_" + str(frame_id),
                         {},
+                        *extra,
                     )
             elif self.output_mode == "all_frame":
                 return (
@@ -267,6 +292,7 @@ class PhaseDataset_Cholec80(Dataset):
                     phase_labels,
                     str(index) + "_" + video_id + "_" + str(frame_id),
                     {},
+                    *extra,
                 )
 
         elif self.mode == "val":
@@ -296,6 +322,11 @@ class PhaseDataset_Cholec80(Dataset):
             else:
                 flag = True
 
+            # 器具マスク (有効時のみ): 学習と条件を揃えるため val でも付加
+            extra = (
+                (self._load_instr_masks(sampled_list),) if self.instr_attn_bias else ()
+            )
+
             if self.output_mode == "key_frame":
                 if self.data_strategy == "offline":
                     return (
@@ -303,6 +334,7 @@ class PhaseDataset_Cholec80(Dataset):
                         phase_labels[self.clip_len // 2],
                         str(index) + "_" + video_id + "_" + str(frame_id),
                         flag,
+                        *extra,
                     )
                 elif self.data_strategy == "online":
                     return (
@@ -310,6 +342,7 @@ class PhaseDataset_Cholec80(Dataset):
                         phase_labels[-1],
                         str(index) + "_" + video_id + "_" + str(frame_id),
                         flag,
+                        *extra,
                     )
             elif self.output_mode == "all_frame":
                 return (
@@ -317,6 +350,7 @@ class PhaseDataset_Cholec80(Dataset):
                     phase_labels,
                     str(index) + "_" + video_id + "_" + str(frame_id),
                     flag,
+                    *extra,
                 )
 
         elif self.mode == "test":

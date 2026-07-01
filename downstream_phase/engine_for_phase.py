@@ -11,8 +11,8 @@ from datetime import datetime
 from scipy.special import softmax
 
 
-def train_class_batch(model, samples, target, criterion):
-    outputs = model(samples)
+def train_class_batch(model, samples, target, criterion, instr_mask=None):
+    outputs = model(samples, instr_mask=instr_mask)
     loss = criterion(outputs, target)
     return loss, outputs
 
@@ -58,9 +58,12 @@ def train_one_epoch(
     else:
         optimizer.zero_grad()
 
-    for data_iter_step, (samples, targets, _, _) in enumerate(
+    for data_iter_step, batch in enumerate(
         metric_logger.log_every(data_loader, print_freq, header)
     ):
+        samples, targets = batch[0], batch[1]
+        # 器具マスク (dataset が instr_attn_bias 有効時のみ 5 要素目を返す)
+        instr_mask = batch[4] if len(batch) > 4 else None
         step = data_iter_step // update_freq
         if step >= num_training_steps_per_epoch:
             continue
@@ -79,16 +82,22 @@ def train_one_epoch(
 
         samples = samples.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
+        if instr_mask is not None:
+            instr_mask = instr_mask.to(device, non_blocking=True)
 
         if mixup_fn is not None:
             samples, targets = mixup_fn(samples, targets)
 
         if loss_scaler is None:
             samples = samples.half()
-            loss, output = train_class_batch(model, samples, targets, criterion)
+            loss, output = train_class_batch(
+                model, samples, targets, criterion, instr_mask=instr_mask
+            )
         else:
             with torch.cuda.amp.autocast(enabled=amp_enabled):
-                loss, output = train_class_batch(model, samples, targets, criterion)
+                loss, output = train_class_batch(
+                    model, samples, targets, criterion, instr_mask=instr_mask
+                )
 
         loss_value = loss.item()
 
